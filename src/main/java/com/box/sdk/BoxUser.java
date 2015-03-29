@@ -3,6 +3,7 @@ package com.box.sdk;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 import com.eclipsesource.json.JsonArray;
@@ -26,6 +27,8 @@ public class BoxUser extends BoxCollaborator {
         "can_see_managed_users", "is_sync_enabled", "is_external_collab_restricted", "status", "job_title", "phone",
         "address", "avatar_url", "is_exempt_from_device_limits", "is_exempt_from_login_verification", "enterprise",
         "my_tags", "hostname"};
+
+    private static final String[] EMPTY_FIELDS = {};
 
     private static final URLTemplate USER_URL_TEMPLATE = new URLTemplate("users/%s");
     private static final URLTemplate GET_ME_URL = new URLTemplate("users/me");
@@ -110,6 +113,113 @@ public class BoxUser extends BoxCollaborator {
         BoxJSONResponse response = (BoxJSONResponse) request.send();
         JsonObject jsonObject = JsonObject.readFrom(response.getJSON());
         return new BoxUser(api, jsonObject.get("id").asString());
+    }
+
+
+    /**
+     * Returns an iterable containing the users in the enterprise.
+     * @param  api the API connection to be used when retrieving the users.
+     * @return     an iterable containing the users in the enterprise.
+     */
+    public static Iterable<BoxUser.Info> getAllUsersInEnterprise(final BoxAPIConnection api) {
+    	return getAllUsersInEnterprise(api, EMPTY_FIELDS);
+    }
+
+    /**
+     * Returns an iterable containing the users in the enterprise and specifies which child fields to retrieve from the
+     * API.
+     * @param  api    the API connection to be used when retrieving the users.
+     * @param  fields the fields to retrieve.
+     * @return        an iterable containing the users in the enterprise.
+     */
+    public static Iterable<BoxUser.Info> getAllUsersInEnterprise(final BoxAPIConnection api, final String... fields) {
+    	return getAllUsersInEnterpriseWithFilter(api, null, fields);
+    }
+
+    /**
+     * Returns an iterable containing the users in the enterprise and specifies a filter and which child fields to retrieve
+     * from the API.
+     * @param  api        the API connection to be used when retrieving the users.
+     * @param  filterTerm filter the results to only users starting with this string in either the name or the login.
+     * @param  fields     the fields to retrieve.
+     * @return            a partial collection containing the specified range of users in the enterprise.
+     */
+    public static Iterable<BoxUser.Info> getAllUsersInEnterpriseWithFilter(final BoxAPIConnection api, final String filterTerm, final String... fields) {
+        return new Iterable<BoxUser.Info>() {
+            public Iterator<BoxUser.Info> iterator() {
+            	QueryStringBuilder builder = new QueryStringBuilder();
+            	if (filterTerm != null) {
+            		builder.appendParam("filter_term", filterTerm);
+            	}
+                if (fields.length > 0) {
+                	builder.appendParam("fields", fields);
+                }
+                URL url = USERS_URL_TEMPLATE.buildWithQuery(api.getBaseURL(), builder.toString());
+                return new BoxUserIterator(api, url);
+            }
+        };
+    }
+
+    /**
+     * Retrieves a specific range of users in the enterprise.
+     * @param  offset the index of the first user to retrieve.
+     * @param  limit  the maximum number of users to retrieve after the offset.
+     * @return        a partial collection containing the specified range of users.
+     */
+    public static PartialCollection<BoxUser.Info> getAllUsersInEnterpriseRange(final BoxAPIConnection api, long offset, long limit) {
+    	return getAllUsersInEnterpriseRange(api, offset, limit, EMPTY_FIELDS);
+    }
+
+    /**
+     * Retrieves a specific range of users in the enterprise and specifies which child fields to retrieve from the
+     * API.
+     * @param  offset the index of the first user to retrieve.
+     * @param  limit  the maximum number of users to retrieve after the offset.
+     * @param  fields the fields to retrieve.
+     * @return        a partial collection containing the specified range of users.
+     */
+    public static PartialCollection<BoxUser.Info> getAllUsersInEnterpriseRange(final BoxAPIConnection api, long offset, long limit, String... fields) {
+    	return getAllUsersInEnterpriseRangeWithFilter(api, offset, limit, null, fields);
+    }
+
+    /**
+     * Retrieves a specific range of users in the enterprise and specifies a filter and which child fields to retrieve
+     * from the API.
+     * @param  offset     the index of the first user to retrieve.
+     * @param  limit      the maximum number of users to retrieve after the offset.
+     * @param  filterTerm filter the results to only users starting with this string in either the name or the login.
+     * @param  fields     the fields to retrieve.
+     * @return            a partial collection containing the specified range of users.
+     */
+    public static PartialCollection<BoxUser.Info> getAllUsersInEnterpriseRangeWithFilter(final BoxAPIConnection api, long offset, long limit, String filterTerm, String... fields) {
+        QueryStringBuilder builder = new QueryStringBuilder()
+            .appendParam("limit", limit)
+            .appendParam("offset", offset);
+
+        if (filterTerm != null) {
+        	builder.appendParam("filter_term", filterTerm);
+        }
+        if (fields.length > 0) {
+            builder.appendParam("fields", fields);
+        }
+
+        URL url = USERS_URL_TEMPLATE.buildWithQuery(api.getBaseURL(), builder.toString());
+        BoxAPIRequest request = new BoxAPIRequest(api, url, "GET");
+        BoxJSONResponse response = (BoxJSONResponse) request.send();
+        JsonObject responseJSON = JsonObject.readFrom(response.getJSON());
+
+        String totalCountString = responseJSON.get("total_count").toString();
+        long fullSize = Double.valueOf(totalCountString).longValue();
+        PartialCollection<BoxUser.Info> users = new PartialCollection<BoxUser.Info>(offset, limit, fullSize);
+        JsonArray jsonArray = responseJSON.get("entries").asArray();
+        for (JsonValue value : jsonArray) {
+            JsonObject jsonObject = value.asObject();
+            BoxUser.Info parsedItemInfo = (BoxUser.Info) BoxResource.parseInfo(api, jsonObject);
+            if (parsedItemInfo != null) {
+            	users.add(parsedItemInfo);
+            }
+        }
+        return users;
     }
 
     /**

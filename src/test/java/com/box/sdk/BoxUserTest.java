@@ -4,20 +4,32 @@ import java.text.ParseException;
 import java.util.Collection;
 import java.util.Date;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 import com.eclipsesource.json.JsonArray;
 import com.eclipsesource.json.JsonObject;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.junit.WireMockRule;
 
 public class BoxUserTest {
+
+    @Rule
+    public final WireMockRule wireMockRule = new WireMockRule(8080);
 
     @Test
     @Category(UnitTest.class)
@@ -175,6 +187,29 @@ public class BoxUserTest {
         assertEquals(phone, createdUserInfo.getPhone());
         assertEquals(address, createdUserInfo.getAddress());
         assertEquals(avatarURL, createdUserInfo.getAvatarURL());
+    }
+
+    @Test
+    @Category(UnitTest.class)
+    public void getAllUsersInEnterpriseRangeWithFilterRequestsCorrectOffsetLimitAndFields() {
+        BoxAPIConnection api = new BoxAPIConnection("");
+        api.setBaseURL("http://localhost:8080/");
+
+        stubFor(get(urlPathEqualTo("/users"))
+            .withQueryParam("offset", WireMock.equalTo("1"))
+            .withQueryParam("limit", WireMock.equalTo("2"))
+            .withQueryParam("filter_term", WireMock.equalTo("prefix"))
+            .withQueryParam("fields", containing("name"))
+            .withQueryParam("fields", containing("role"))
+            .willReturn(aResponse()
+                .withHeader("Content-Type", "application/json")
+                .withBody("{\"total_count\": 3, \"entries\":[]}")));
+
+        PartialCollection<BoxUser.Info> users = BoxUser.getAllUsersInEnterpriseRangeWithFilter(api, 1, 2, "prefix", "name", "role");
+
+        assertThat(users.offset(), is(equalTo(1L)));
+        assertThat(users.limit(), is(equalTo(2L)));
+        assertThat(users.fullSize(), is(equalTo(3L)));
     }
 
     @Test
