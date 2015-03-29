@@ -13,6 +13,8 @@ import com.eclipsesource.json.JsonObject;
  * handling for errors related to the Box REST API, you should capture this exception explicitly.</p>
  */
 public class BoxGroup extends BoxCollaborator {
+    private static final String[] EMPTY_FIELDS = {};
+
     private static final URLTemplate GROUPS_URL_TEMPLATE = new URLTemplate("groups");
     private static final URLTemplate GROUP_URL_TEMPLATE = new URLTemplate("groups/%s");
 
@@ -51,9 +53,24 @@ public class BoxGroup extends BoxCollaborator {
      * @return     an iterable containing info about all the groups.
      */
     public static Iterable<BoxGroup.Info> getAllGroups(final BoxAPIConnection api) {
+        return getAllGroups(api, EMPTY_FIELDS);
+    }
+
+    /**
+     * Gets an iterable of all the groups that the current user is a member of and specifies which child fields to
+     * retrieve from the API.
+     * @param  api    the API connection to be used when retrieving the groups.
+     * @param  fields the fields to retrieve.
+     * @return        an iterable containing info about all the groups.
+     */
+    public static Iterable<BoxGroup.Info> getAllGroups(final BoxAPIConnection api, final String... fields) {
         return new Iterable<BoxGroup.Info>() {
             public Iterator<BoxGroup.Info> iterator() {
-                URL url = GROUPS_URL_TEMPLATE.build(api.getBaseURL());
+                QueryStringBuilder builder = new QueryStringBuilder();
+                if (fields.length > 0) {
+                    builder.appendParam("fields", fields);
+                }
+                URL url = GROUPS_URL_TEMPLATE.buildWithQuery(api.getBaseURL(), builder.toString());
                 return new BoxGroupIterator(api, url);
             }
         };
