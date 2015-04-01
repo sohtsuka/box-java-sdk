@@ -38,6 +38,7 @@
 
         <property name="basedir" value="${basedir}"/>
     -->
+    <property name="charset" value="utf-8"/>
 
     <!-- Checks whether files end with a new line.                        -->
     <!-- See http://checkstyle.sf.net/config_misc.html#NewlineAtEndOfFile -->
